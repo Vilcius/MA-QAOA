@@ -7,7 +7,9 @@ import time
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from random import sample
 
+from src.graph_utils import get_max_edge_depth, is_isomorphic
 from src.data_processing import numpy_str_to_array
 from src.optimization import optimize_qaoa_angles, Evaluator
 from src.preprocessing import evaluate_graph_cut
@@ -97,11 +99,49 @@ def run_optimization():
     print('Done')
 
 
-def run_draw_graph():
-    graph = nx.read_gml('graphs/nodes_8/ed_4/1.gml', destringizer=int)
+def run_draw_graph(gf):
+    # graph = nx.read_gml('graphs/main/all_8/graph_40/pseudo_random/25.gml', destringizer=int)
+    graph = nx.read_gml(gf, destringizer=int)
     nx.draw(graph, with_labels=True)
     plt.show()
 
+def generate_random_subgraphs(g):
+    num_graphs = 10
+    max_attempts = 40
+    nodes = 8
+    graph_path = f'graphs/main/all_{nodes}/graph_{g}/{g}.gml'
+    graph = nx.read_gml(graph_path)
+    m = nx.number_of_edges(graph)
+
+    out_path = f'graphs/main/all_{nodes}/graph_{g}/pseudo_random'
+
+    edge_frac = [1/4, 1/3, 1/2, 2/3, 3/4]
+    edge_count = [int(np.ceil(m * i)) for i in edge_frac]
+
+    graphs = np.empty(num_graphs*len(edge_count), dtype=object)
+    total_generated = 0
+    for mm in edge_count:
+        graphs_generated = 0
+        for i in range(max_attempts):
+            next_graph = nx.Graph()
+            next_graph.add_nodes_from(graph.nodes)
+            next_graph.add_edges_from(sample(list(graph.edges),mm))
+            # if not nx.is_connected(next_graph):
+            #     continue
+            if is_isomorphic(next_graph, graphs[:total_generated]):
+                continue
+            graphs[total_generated] = next_graph
+            graphs_generated += 1
+            total_generated += 1
+            print(f'{total_generated}')
+            if graphs_generated == num_graphs:
+                break
+    # else:
+    #     raise 'Failed to generate connected set'
+    print('Generation done')
+
+    for i in range(total_generated):
+        nx.write_gml(graphs[i], f'{out_path}/{i}.gml')
 
 if __name__ == '__main__':
     logging.basicConfig()
@@ -112,7 +152,9 @@ if __name__ == '__main__':
     start = time.perf_counter()
     # run_add_graph()
     # run_point()
-    run_optimization()
-    # run_draw_graph()
+    # run_optimization()
+    # generate_random_subgraphs(50)
+    gf = 'graphs/main/all_8/graph_11116/pseudo_random/49.gml'
+    run_draw_graph(gf)
     end = time.perf_counter()
     print(f'Elapsed time: {end - start}')

@@ -11,7 +11,6 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame
 from random import sample
-from math import comb
 
 from src.data_processing import merge_dfs, numpy_str_to_array
 from src.graph_utils import get_max_edge_depth, is_isomorphic
@@ -59,6 +58,7 @@ def generate_graphs():
     for i in range(len(graphs)):
         nx.write_gml(graphs[i], f'{out_path}/{i}.gml')
 
+
 def generate_random_edge_graphs(g):
     num_graphs = 10
     max_attempts = 10 ** 3
@@ -89,9 +89,10 @@ def generate_random_edge_graphs(g):
     for i in range(graphs_generated-1):
         nx.write_gml(graphs[i+1], f'{out_path}/{i}.gml')
 
+
 def generate_random_subgraphs(g):
     num_graphs = 10
-    max_attempts = 40
+    max_attempts = 100
     nodes = 8
     graph_path = f'graphs/main/all_{nodes}/graph_{g}/{g}.gml'
     graph = nx.read_gml(graph_path)
@@ -108,7 +109,7 @@ def generate_random_subgraphs(g):
         graphs_generated = 0
         for i in range(max_attempts):
             next_graph = nx.Graph()
-            next_graph.add_nodes_from(range(nodes))
+            next_graph.add_nodes_from(graph.nodes)
             next_graph.add_edges_from(sample(list(graph.edges),mm))
             # if not nx.is_connected(next_graph):
             #     continue
@@ -134,37 +135,84 @@ def generate_remove_triangle_graphs(g):
     nodes = 8
     graph_path = f'graphs/main/all_{nodes}/graph_{g}/{g}.gml'
     graph = nx.read_gml(graph_path)
-    m = nx.number_of_edges(graph)
 
     out_path = f'graphs/main/all_{nodes}/graph_{g}/remove_triangle'
 
-
     graphs = np.empty(num_graphs, dtype=object)
-    total_generated = 0
     triangles = [clique for clique in nx.enumerate_all_cliques(graph) if len(clique) == 3]
+    graphs_generated = 0
+
+    cases = []
 
     if len(triangles) > 0:
-        graphs_generated = 0
-        for i in range(max_attempts):
-            next_graph = nx.Graph()
-            next_graph.add_nodes_from(range(nodes))
-            next_graph.add_edges_from(sample(list(graph.edges),mm))
-            # if not nx.is_connected(next_graph):
-            #     continue
-            if is_isomorphic(next_graph, graphs[:total_generated]):
-                continue
-            graphs[total_generated] = next_graph
+        if len(triangles) == 1:
+            common = {(i, j): sorted(nx.common_neighbors(graph, i, j)) for (i, j) in graph.edges}
+            ncommon = {e: common[e] for e in common if len(common[e]) > 0}
+            sorted_common = sorted(ncommon, key=lambda e: len(ncommon[e]), reverse=True)
+
+            cases.append('random')
+            next_graph = graph.copy()
+            removed_edge = sample(sorted_common, 1)[0]
+            next_graph.remove_edge(removed_edge[0], removed_edge[1])
+
+            graphs[graphs_generated] = next_graph
+            print(f'{cases[graphs_generated]}')
             graphs_generated += 1
-            total_generated += 1
-            print(f'{total_generated}')
-            if graphs_generated == num_graphs:
-                break
-    # else:
-    #     raise 'Failed to generate connected set'
+
+        else:
+            for case in ['all', 'random']:
+                if case == 'random':
+                    common = {(i, j): sorted(nx.common_neighbors(graph, i, j)) for (i, j) in graph.edges}
+                    ncommon = {e: common[e] for e in common if len(common[e]) > 0}
+                    sorted_common = sorted(ncommon, key=lambda e: len(ncommon[e]), reverse=True)
+
+                    cases.append('random')
+                    next_graph = graph.copy()
+                    removed_edge = sample(sorted_common, 1)[0]
+                    next_graph.remove_edge(removed_edge[0], removed_edge[1])
+
+                    graphs[graphs_generated] = next_graph
+                    print(f'{cases[graphs_generated]}')
+                    graphs_generated += 1
+
+                else:
+                    common = {(i, j): sorted(nx.common_neighbors(graph, i, j)) for (i, j) in graph.edges}
+                    ncommon = {e: common[e] for e in common if len(common[e]) > 0}
+                    sorted_common = sorted(ncommon, key=lambda e: len(ncommon[e]), reverse=True)
+
+                    n_removed = 0
+                    next_graph = graph.copy()
+
+                    while len(ncommon) > 0:
+                        removed_edge = sorted_common[0]
+                        next_graph.remove_edge(removed_edge[0], removed_edge[1])
+                        n_removed += 1
+
+                        if n_removed == 1:
+                            cases.append('most')
+                            graphs[graphs_generated] = next_graph.copy()
+                            print(f'{cases[graphs_generated]}')
+                            graphs_generated += 1
+
+                        if n_removed == 2:
+                            cases.append('2_most')
+                            graphs[graphs_generated] = next_graph.copy()
+                            print(f'{cases[graphs_generated]}')
+                            graphs_generated += 1
+
+                        common = {(i, j): sorted(nx.common_neighbors(next_graph, i, j)) for (i, j) in next_graph.edges}
+                        ncommon = {e: common[e] for e in common if len(common[e]) > 0}
+                        sorted_common = sorted( ncommon, key=lambda e: len(ncommon[e]), reverse=True)
+
+                    cases.append('all')
+                    graphs[graphs_generated] = next_graph
+                    print(f'{cases[graphs_generated]}')
+                    graphs_generated += 1
+
     print('Generation done')
 
-    for i in range(graphs_generated):
-        nx.write_gml(graphs[i], f'{out_path}/{i}.gml')
+    for i, c in enumerate(cases):
+        nx.write_gml(graphs[i], f'{out_path}/{c}.gml')
 
 
 def init_dataframe(data_path: str, worker: WorkerBaseQAOA, out_path: str):
@@ -278,10 +326,11 @@ if __name__ == '__main__':
     np.set_printoptions(threshold=np.inf, linewidth=np.inf)
 
     # generate_graphs()
-    for g in range(136,11117):
-        print(f'g = {g}')
+    # for g in range(11117):
+        # print(f'g = {g}')
         # generate_random_edge_graphs(g)
-        generate_random_subgraphs(g)
+        # generate_random_subgraphs(g)
+        # generate_remove_triangle_graphs(g)
     # run_graphs_parallel()
     # run_merge()
     # run_correct()
