@@ -15,7 +15,7 @@ from networkx import Graph
 from numpy import ndarray
 from scipy.optimize import OptimizeResult
 
-from src.analytical import calc_expectation_ma_qaoa_analytical_p1
+from src.analytical import calc_expectation_ma_qaoa_analytical_p1, calc_expectation_random_qaoa_analytical_p1
 from src.angle_strategies import qaoa_decorator, linear_decorator, tqa_decorator, fix_angles, fourier_decorator
 from src.data_processing import normalize_qaoa_angles
 from src.graph_utils import get_index_edge_list
@@ -140,6 +140,24 @@ class Evaluator:
         in the order of graph.nodes.
         """
         func = lambda angles: calc_expectation_ma_qaoa_analytical_p1(angles, graph, edge_list)
+        if use_multi_angle:
+            num_angles = len(graph.edges) + len(graph)
+        else:
+            func = qaoa_decorator(func, len(graph.edges), len(graph))
+            num_angles = 2
+        return Evaluator(change_sign(func), num_angles)
+
+    @staticmethod
+    def get_evaluator_random_circuit_maxcut_analytical(graph: Graph, random_graph: Graph, edge_list: list[tuple[int, int]] = None, use_multi_angle: bool = False) -> Evaluator:
+        """
+        Returns analytical evaluator of negative target expectation for p=1 with MA-QAOA ansatz.
+        :param graph: Target graph for MaxCut.
+        :param edge_list: List of edges that should be taken into account when calculating expectation value. If None, then all edges are taken into account.
+        :param use_multi_angle: True to use individual angles for each edge and node. False to use 1 angle for all edges and 1 angle for all nodes.
+        :return: Analytical evaluator. The input parameters are specified in the following order: all edge angles in the order of graph.edges, then all node angles
+        in the order of graph.nodes.
+        """
+        func = lambda angles: calc_expectation_random_qaoa_analytical_p1(angles, graph, random_graph, edge_list)
         if use_multi_angle:
             num_angles = len(graph.edges) + len(graph)
         else:

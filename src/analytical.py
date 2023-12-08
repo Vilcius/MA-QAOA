@@ -75,3 +75,45 @@ def calc_expectation_ma_qaoa_analytical_p1(angles: ndarray, graph: Graph, edge_l
         objective += cuv
 
     return objective
+
+
+def calc_expectation_random_qaoa_analytical_p1(angles: ndarray, graph: Graph, graph_random: Graph, edge_list: list[tuple[int, int]] = None) -> float:
+    """
+    Calculates target expectation for given angles with Random Circuit QAOA ansatz via an analytical formula for p=1.
+    :param angles: 1D array of all angles for the first layer. Same format as in run_ma_qaoa_simulation.
+    :param graph: Graph for which MaxCut problem is being solved.
+    :param graph_random: Graph used in circuit for which MaxCut problem is being solved.
+    :param edge_list: List of edges that should be taken into account when calculating expectation value. If None, then all edges are taken into account.
+    :return: Expectation value of C (sum of all Cuv) in the state corresponding to the given set of angles, i.e. <beta, gamma|C|beta, gamma>.
+    """
+    if edge_list is None:
+        edge_list = graph.edges
+
+    gammas = angles[0:len(graph_random.edges)]
+    betas = angles[len(graph_random.edges):]
+    nx.set_edge_attributes(graph_random, {(u, v): gammas[i] * w for i, (u, v, w) in enumerate(graph_random.edges.data('weight'))}, name='gamma')
+    objective = 0
+    for u, v in edge_list:
+        w = graph.edges[(u, v)]['weight']
+        cuv = w / 2
+        d = set(graph_random[u]) - {v}
+        e = set(graph_random[v]) - {u}
+        f = d & e
+        chi = 1 if u in graph_random[v] else 0
+
+        cos_prod_d = math.prod([cos(graph_random.edges[u, m]['gamma']) for m in d - f])
+        cos_prod_e = math.prod([cos(graph_random.edges[v, m]['gamma']) for m in e - f])
+
+        # Triangle terms
+        if len(f) != 0:
+            cos_prod_f_plus = math.prod([cos(graph_random.edges[u, m]['gamma'] + graph.edges[v, m]['gamma']) for m in f])
+            cos_prod_f_minus = math.prod([cos(graph_random.edges[u, m]['gamma'] - graph.edges[v, m]['gamma']) for m in f])
+            cuv += w / 4 * sin(2 * betas[u]) * sin(2 * betas[v]) * cos_prod_d * cos_prod_e * (cos_prod_f_plus - cos_prod_f_minus)
+            cos_prod_d *= math.prod([cos(graph_random.edges[u, m]['gamma']) for m in f])
+            cos_prod_e *= math.prod([cos(graph_random.edges[v, m]['gamma']) for m in f])
+
+        cuv += chi * w / 2 * sin(graph_random.edges[u, v]['gamma']) * \
+            (sin(2 * betas[u]) * cos(2 * betas[v]) * cos_prod_d + cos(2 * betas[u]) * sin(2 * betas[v]) * cos_prod_e)
+        objective += cuv
+
+    return objective

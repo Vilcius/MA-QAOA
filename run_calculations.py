@@ -10,6 +10,8 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 from pandas import DataFrame
+from random import sample
+from math import comb
 
 from src.data_processing import merge_dfs, numpy_str_to_array
 from src.graph_utils import get_max_edge_depth, is_isomorphic
@@ -20,10 +22,10 @@ from src.parallel import optimize_expectation_parallel, WorkerFourier, WorkerSta
 def generate_graphs():
     num_graphs = 1000
     max_attempts = 10 ** 10
-    nodes = 10
-    depth = 6
+    nodes = 9
+    depth = 4
     edge_prob = 0.1
-    out_path = f'graphs/new/nodes_{nodes}/depth_{depth}'
+    out_path = f'graphs/main/nodes_{nodes}/depth_{depth}'
 
     graphs = np.empty(num_graphs, dtype=object)
     graphs_generated = 0
@@ -57,6 +59,113 @@ def generate_graphs():
     for i in range(len(graphs)):
         nx.write_gml(graphs[i], f'{out_path}/{i}.gml')
 
+def generate_random_edge_graphs(g):
+    num_graphs = 10
+    max_attempts = 10 ** 3
+    nodes = 8
+    graph_path = f'graphs/main/all_{nodes}/graph_{g}/{g}.gml'
+    out_path = f'graphs/main/all_{nodes}/graph_{g}/random'
+    graph = nx.read_gml(graph_path)
+    m = nx.number_of_edges(graph)
+
+    graphs = np.empty(num_graphs+1, dtype=object)
+    graphs[0] = graph
+    graphs_generated = 1
+    for i in range(max_attempts):
+        next_graph = nx.gnm_random_graph(nodes, m)
+        if not nx.is_connected(next_graph):
+            continue
+        if is_isomorphic(next_graph, graphs[:graphs_generated]):
+            continue
+        graphs[graphs_generated] = next_graph
+        graphs_generated += 1
+        print(f'{graphs_generated-1}')
+        if graphs_generated == num_graphs+1:
+            break
+    # else:
+    #     raise 'Failed to generate connected set'
+    print('Generation done')
+
+    for i in range(graphs_generated-1):
+        nx.write_gml(graphs[i+1], f'{out_path}/{i}.gml')
+
+def generate_random_subgraphs(g):
+    num_graphs = 10
+    max_attempts = 40
+    nodes = 8
+    graph_path = f'graphs/main/all_{nodes}/graph_{g}/{g}.gml'
+    graph = nx.read_gml(graph_path)
+    m = nx.number_of_edges(graph)
+
+    out_path = f'graphs/main/all_{nodes}/graph_{g}/pseudo_random'
+
+    edge_frac = [1/4, 1/3, 1/2, 2/3, 3/4]
+    edge_count = [int(np.ceil(m * i)) for i in edge_frac]
+
+    graphs = np.empty(num_graphs*len(edge_count), dtype=object)
+    total_generated = 0
+    for mm in edge_count:
+        graphs_generated = 0
+        for i in range(max_attempts):
+            next_graph = nx.Graph()
+            next_graph.add_nodes_from(range(nodes))
+            next_graph.add_edges_from(sample(list(graph.edges),mm))
+            # if not nx.is_connected(next_graph):
+            #     continue
+            if is_isomorphic(next_graph, graphs[:total_generated]):
+                continue
+            graphs[total_generated] = next_graph
+            graphs_generated += 1
+            total_generated += 1
+            print(f'{total_generated}')
+            if graphs_generated == num_graphs:
+                break
+    # else:
+    #     raise 'Failed to generate connected set'
+    print('Generation done')
+
+    for i in range(total_generated):
+        nx.write_gml(graphs[i], f'{out_path}/{i}.gml')
+
+
+def generate_remove_triangle_graphs(g):
+    num_graphs = 4
+    # max_attempts = 10 ** 4
+    nodes = 8
+    graph_path = f'graphs/main/all_{nodes}/graph_{g}/{g}.gml'
+    graph = nx.read_gml(graph_path)
+    m = nx.number_of_edges(graph)
+
+    out_path = f'graphs/main/all_{nodes}/graph_{g}/remove_triangle'
+
+
+    graphs = np.empty(num_graphs, dtype=object)
+    total_generated = 0
+    triangles = [clique for clique in nx.enumerate_all_cliques(graph) if len(clique) == 3]
+
+    if len(triangles) > 0:
+        graphs_generated = 0
+        for i in range(max_attempts):
+            next_graph = nx.Graph()
+            next_graph.add_nodes_from(range(nodes))
+            next_graph.add_edges_from(sample(list(graph.edges),mm))
+            # if not nx.is_connected(next_graph):
+            #     continue
+            if is_isomorphic(next_graph, graphs[:total_generated]):
+                continue
+            graphs[total_generated] = next_graph
+            graphs_generated += 1
+            total_generated += 1
+            print(f'{total_generated}')
+            if graphs_generated == num_graphs:
+                break
+    # else:
+    #     raise 'Failed to generate connected set'
+    print('Generation done')
+
+    for i in range(graphs_generated):
+        nx.write_gml(graphs[i], f'{out_path}/{i}.gml')
+
 
 def init_dataframe(data_path: str, worker: WorkerBaseQAOA, out_path: str):
     if worker.initial_guess_from is None:
@@ -81,22 +190,22 @@ def init_dataframe(data_path: str, worker: WorkerBaseQAOA, out_path: str):
 
 def run_graphs_parallel():
     nodes = list(range(12, 13))
-    depths = list(range(4, 7))
-    ps = list(range(5, 6))
+    depths = list(range(3, 4))
+    ps = list(range(1, 2))
 
     num_workers = 20
     convergence_threshold = 0.9995
     reader = partial(nx.read_gml, destringizer=int)
 
     for p in ps:
-        out_path_suffix = 'output/ma/qaoa_relax/constant/out.csv'
+        out_path_suffix = '/output/qaoa/standard/new_out.csv'
         out_col = f'p_{p}'
         initial_guess_from = None if p == 1 else f'p_{p - 1}'
         initial_guess_from = f'p_{p}'
         transfer_from = None if p == 1 else f'p_{p - 1}'
         transfer_p = None if p == 1 else p - 1
 
-        # worker = WorkerStandard(reader=reader, p=p, out_col=f'r_1', initial_guess_from=None, transfer_from=None, transfer_p=None, search_space='qaoa')
+        worker = WorkerStandard(reader=reader, p=p, out_col=f'r_1', initial_guess_from=None, transfer_from=None, transfer_p=None, search_space='qaoa')
         # worker_constant = WorkerConstant(reader=reader, p=p, out_col=out_col, initial_guess_from=None, transfer_from=transfer_from, transfer_p=transfer_p)
         # worker_tqa = WorkerLinear(reader=reader, p=p, out_col=out_col, initial_guess_from=None, transfer_from=transfer_from, transfer_p=transfer_p, search_space='tqa')
         # worker_interp = WorkerInterp(reader=reader, p=p, out_col=out_col, initial_guess_from=initial_guess_from, transfer_from=transfer_from, transfer_p=transfer_p, alpha=0.6)
@@ -104,14 +213,14 @@ def run_graphs_parallel():
         # worker_greedy = WorkerGreedy(reader=reader, p=p, out_col=out_col, initial_guess_from=initial_guess_from, transfer_from=transfer_from, transfer_p=transfer_p)
         # worker_combined = WorkerCombined(reader=reader, p=p, out_col=out_col, initial_guess_from=initial_guess_from, transfer_from=transfer_from, transfer_p=transfer_p,
         #                                  workers=[worker_interp, worker_greedy], restart_shares=[0.5, 0.5])
-        worker_ma = WorkerMA(reader=reader, p=p, out_col=out_col, initial_guess_from=initial_guess_from, transfer_from=transfer_from, transfer_p=transfer_p,
-                             guess_provider=None, guess_format='qaoa')
-        worker = worker_ma
+        # worker_ma = WorkerMA(reader=reader, p=p, out_col=out_col, initial_guess_from=initial_guess_from, transfer_from=transfer_from, transfer_p=transfer_p,
+        #                      guess_provider=None, guess_format='qaoa')
+        # worker = worker_ma
 
         for node in nodes:
             node_depths = [3] if node < 12 else depths
             for depth in node_depths:
-                data_path = f'graphs/new/nodes_{node}/depth_{depth}/'
+                data_path = f'graphs/main/nodes_{node}/depth_{depth}'
                 out_path = data_path + out_path_suffix
 
                 rows_func = lambda df: np.ones((df.shape[0], 1), dtype=bool) if p == 1 else df[f'p_{p - 1}'] < convergence_threshold
@@ -169,6 +278,10 @@ if __name__ == '__main__':
     np.set_printoptions(threshold=np.inf, linewidth=np.inf)
 
     # generate_graphs()
-    run_graphs_parallel()
+    for g in range(136,11117):
+        print(f'g = {g}')
+        # generate_random_edge_graphs(g)
+        generate_random_subgraphs(g)
+    # run_graphs_parallel()
     # run_merge()
     # run_correct()
