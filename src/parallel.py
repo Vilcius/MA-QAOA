@@ -1,5 +1,6 @@
 import itertools as it
 import re
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from multiprocessing import Pool
@@ -505,6 +506,30 @@ class WorkerMaxCut(WorkerAbstract):
         return series
 
 
+@dataclass(kw_only=True)
+class WorkerRandomCircuit(WorkerStandard):
+    """
+    Worker that executes random circuit QAOA for a given graph and graph_random.
+    var random_type: The type of random graph to evaluate (random, pseudo_random, or remove_triangle).
+    :var out_col: Name of the output column for AR.
+    """
+
+    def process_entry(self, entry: tuple[tuple[str, str], Series]) -> Series:
+        paths, series = entry
+        print(paths)
+        graph = self.reader(paths[0])
+        graph_random = self.reader(paths[1])
+
+
+        evaluator = Evaluator.get_evaluator_random_circuit_maxcut_analytical(graph, graph_random)
+        result = optimize_qaoa_angles(evaluator, num_restarts=100, objective_tolerance=1.1, normalize_angles=False)
+
+        series[self.out_col] = -result.fun / graph.graph['maxcut']
+        series[self.out_col + '_angles'] = result.x
+        series[self.out_col + '_nfev'] = result.nfev
+        return series
+
+
 def optimize_expectation_parallel(dataframe_path: str, rows_func: callable, num_workers: int, worker: WorkerBaseQAOA):
     """
     Optimizes cut expectation for a given set of graphs in parallel and writes the output dataframe.
@@ -513,7 +538,10 @@ def optimize_expectation_parallel(dataframe_path: str, rows_func: callable, num_
     :param num_workers: Number of parallel workers.
     :param worker: Worker instance.
     """
-    df = pd.read_csv(dataframe_path, index_col=0)
+    if isinstance(worker, WorkerRandomCircuit):
+        df = pd.read_csv(dataframe_path, index_col=[0,1])
+    else:
+        df = pd.read_csv(dataframe_path, index_col=0)
     selected_rows = rows_func(df)
     rows_to_process = list(df.loc[selected_rows, :].iterrows())
     remaining_rows = df.loc[~selected_rows, :]

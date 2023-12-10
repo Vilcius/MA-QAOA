@@ -89,31 +89,55 @@ def calc_expectation_random_qaoa_analytical_p1(angles: ndarray, graph: Graph, gr
     if edge_list is None:
         edge_list = graph.edges
 
-    gammas = angles[0:len(graph_random.edges)]
-    betas = angles[len(graph_random.edges):]
-    nx.set_edge_attributes(graph_random, {(u, v): gammas[i] * w for i, (u, v, w) in enumerate(graph_random.edges.data('weight'))}, name='gamma')
+    gammas = angles[0]
+    betas = angles[1]
+    # nx.set_edge_attributes(graph_random, {(u, v): gammas[i] * w for i, (u, v, w) in enumerate(graph_random.edges.data('weight'))}, name='gamma')
     objective = 0
+    # for u, v in edge_list:
+    #     w = graph.edges[(u, v)]['weight']
+    #     cuv = w / 2
+    #     d = set(graph_random[u]) - {v}
+    #     e = set(graph_random[v]) - {u}
+    #     f = d & e
+    #     chi = 1 if u in graph_random[v] else 0
+
+    #     cos_prod_d = math.prod([cos(graph_random.edges[u, m]['gamma']) for m in d - f])
+    #     cos_prod_e = math.prod([cos(graph_random.edges[v, m]['gamma']) for m in e - f])
+
+    #     # Triangle terms
+    #     if len(f) != 0:
+    #         cos_prod_f_plus = math.prod([cos(graph_random.edges[u, m]['gamma'] + graph.edges[v, m]['gamma']) for m in f])
+    #         cos_prod_f_minus = math.prod([cos(graph_random.edges[u, m]['gamma'] - graph.edges[v, m]['gamma']) for m in f])
+    #         cuv += w / 4 * sin(2 * betas[u]) * sin(2 * betas[v]) * cos_prod_d * cos_prod_e * (cos_prod_f_plus - cos_prod_f_minus)
+    #         cos_prod_d *= math.prod([cos(graph_random.edges[u, m]['gamma']) for m in f])
+    #         cos_prod_e *= math.prod([cos(graph_random.edges[v, m]['gamma']) for m in f])
+
+    #     cuv += chi * w / 2 * sin(graph_random.edges[u, v]['gamma']) * \
+    #         (sin(2 * betas[u]) * cos(2 * betas[v]) * cos_prod_d + cos(2 * betas[u]) * sin(2 * betas[v]) * cos_prod_e)
+    #     objective += cuv
+
+    # nx.set_edge_attributes(graph_random, {(u, v): gammas[i] for i, (u, v) in enumerate(graph_random.edges)}, name='gamma')
+
     for u, v in edge_list:
-        w = graph.edges[(u, v)]['weight']
-        cuv = w / 2
+        cuv = 1 / 2
         d = set(graph_random[u]) - {v}
         e = set(graph_random[v]) - {u}
         f = d & e
-        chi = 1 if u in graph_random[v] else 0
 
-        cos_prod_d = math.prod([cos(graph_random.edges[u, m]['gamma']) for m in d - f])
-        cos_prod_e = math.prod([cos(graph_random.edges[v, m]['gamma']) for m in e - f])
+        cos_prod_d = math.prod([cos(gammas) for m in d - f])
+        cos_prod_e = math.prod([cos(gammas) for m in e - f])
 
         # Triangle terms
         if len(f) != 0:
-            cos_prod_f_plus = math.prod([cos(graph_random.edges[u, m]['gamma'] + graph.edges[v, m]['gamma']) for m in f])
-            cos_prod_f_minus = math.prod([cos(graph_random.edges[u, m]['gamma'] - graph.edges[v, m]['gamma']) for m in f])
-            cuv += w / 4 * sin(2 * betas[u]) * sin(2 * betas[v]) * cos_prod_d * cos_prod_e * (cos_prod_f_plus - cos_prod_f_minus)
-            cos_prod_d *= math.prod([cos(graph_random.edges[u, m]['gamma']) for m in f])
-            cos_prod_e *= math.prod([cos(graph_random.edges[v, m]['gamma']) for m in f])
+            cos_prod_f_plus = math.prod([cos(gammas + gammas) for m in f])
+            cos_prod_f_minus = math.prod([cos(gammas - gammas) for m in f])
+            cuv += 1 / 4 * sin(2 * betas) * sin(2 * betas) * cos_prod_d * cos_prod_e * (cos_prod_f_plus - cos_prod_f_minus)
+            cos_prod_d *= math.prod([cos(gammas) for m in f])
+            cos_prod_e *= math.prod([cos(gammas) for m in f])
 
-        cuv += chi * w / 2 * sin(graph_random.edges[u, v]['gamma']) * \
-            (sin(2 * betas[u]) * cos(2 * betas[v]) * cos_prod_d + cos(2 * betas[u]) * sin(2 * betas[v]) * cos_prod_e)
+        if u in graph_random[v]:
+            cuv += 1 * 1 / 2 * sin(gammas) * \
+                (sin(2 * betas) * cos(2 * betas) * cos_prod_d + cos(2 * betas) * sin(2 * betas) * cos_prod_e)
+
         objective += cuv
-
     return objective

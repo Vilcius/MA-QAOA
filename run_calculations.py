@@ -14,8 +14,7 @@ from random import sample
 
 from src.data_processing import merge_dfs, numpy_str_to_array
 from src.graph_utils import get_max_edge_depth, is_isomorphic
-from src.parallel import optimize_expectation_parallel, WorkerFourier, WorkerStandard, WorkerBaseQAOA, WorkerInterp, WorkerGreedy, WorkerMA, WorkerLinear, WorkerCombined, \
-    WorkerConstant
+from src.parallel import optimize_expectation_parallel, WorkerFourier, WorkerStandard, WorkerBaseQAOA, WorkerInterp, WorkerGreedy, WorkerMA, WorkerLinear, WorkerCombined, WorkerConstant, WorkerRandomCircuit
 
 
 def generate_graphs():
@@ -215,45 +214,60 @@ def generate_remove_triangle_graphs(g):
         nx.write_gml(graphs[i], f'{out_path}/{c}.gml')
 
 
-def init_dataframe(data_path: str, worker: WorkerBaseQAOA, out_path: str):
-    if worker.initial_guess_from is None:
-        paths = [f'{data_path}/{i}.gml' for i in range(1000)]
+def init_dataframe(data_path: str, worker: WorkerBaseQAOA, out_path: str, random_type=None):
+    if isinstance(worker, WorkerRandomCircuit):
+        paths = [(f'{data_path}graph_{i}/{i}.gml', f'{data_path}graph_{i}/{random_type}/{os.fsdecode(j)}')
+                 for i in range(11117) for j in sorted(os.listdir(os.fsencode(f'{data_path}graph_{i}/{random_type}')))]
+        index = pd.MultiIndex.from_tuples(paths, names=["path", "random_path"])
+        df = DataFrame(index=index)
+
+    elif worker.initial_guess_from is None:
+        paths = [f'{data_path}/{i}.gml' for i in range(11117)]
         df = DataFrame(paths).set_axis(['path'], axis=1).set_index('path')
+
     elif isinstance(worker, (WorkerInterp, WorkerFourier, WorkerGreedy, WorkerCombined)) or hasattr(worker, 'guess_provider') and isinstance(worker.guess_provider, WorkerInterp):
         df = pd.read_csv(f'{data_path}/output/{worker.search_space}/random/p_1/out.csv', index_col=0)
         prev_nfev = df.filter(regex=r'r_\d_nfev').sum(axis=1).astype(int)
         df = df.filter(regex='r_10').rename(columns=lambda name: f'p_1{name[4:]}')
         df['p_1_nfev'] += prev_nfev
+
         if isinstance(worker, (WorkerInterp, WorkerFourier)):
             df = df.rename(columns={'p_1_angles': 'p_1_angles_unperturbed'})
             df['p_1_angles_best'] = df['p_1_angles_unperturbed']
+
     elif isinstance(worker, WorkerMA):
         df = pd.read_csv(f'{data_path}/output/qaoa/constant/0.2/out.csv', index_col=0)
         # df = df.filter(regex=r'p_\d+_angles').rename(columns=lambda name: f'{name[:-7]}_starting_angles')
         df = df.filter(regex=r'p_\d+_angles')
+
     else:
         raise Exception('No init for this worker')
     df.to_csv(out_path)
 
 
 def run_graphs_parallel():
-    nodes = list(range(12, 13))
-    depths = list(range(3, 4))
-    ps = list(range(1, 2))
+    # nodes = list(range(12, 13))
+    nodes = [8]
+    # depths = list(range(3, 4))
+    # ps = list(range(1, 2))
+    ps = [1]
 
     num_workers = 20
-    convergence_threshold = 0.9995
+    # convergence_threshold = 0.9995
+    convergence_threshold = 1.1
     reader = partial(nx.read_gml, destringizer=int)
+    p = 1
 
-    for p in ps:
-        out_path_suffix = '/output/qaoa/standard/new_out.csv'
+    # for p in ps:
+    for random_type in ['random', 'pseudo_random', 'remove_triangle']:
+        out_path_suffix = f'output/{random_type}/out.csv'
         out_col = f'p_{p}'
-        initial_guess_from = None if p == 1 else f'p_{p - 1}'
-        initial_guess_from = f'p_{p}'
-        transfer_from = None if p == 1 else f'p_{p - 1}'
-        transfer_p = None if p == 1 else p - 1
+        # initial_guess_from = None if p == 1 else f'p_{p - 1}'
+        # initial_guess_from = f'p_{p}'
+        # transfer_from = None if p == 1 else f'p_{p - 1}'
+        # transfer_p = None if p == 1 else p - 1
 
-        worker = WorkerStandard(reader=reader, p=p, out_col=f'r_1', initial_guess_from=None, transfer_from=None, transfer_p=None, search_space='qaoa')
+        # worker = WorkerStandard(reader=reader, p=p, out_col=f'p_1', initial_guess_from=None, transfer_from=None, transfer_p=None, search_space='qaoa')
         # worker_constant = WorkerConstant(reader=reader, p=p, out_col=out_col, initial_guess_from=None, transfer_from=transfer_from, transfer_p=transfer_p)
         # worker_tqa = WorkerLinear(reader=reader, p=p, out_col=out_col, initial_guess_from=None, transfer_from=transfer_from, transfer_p=transfer_p, search_space='tqa')
         # worker_interp = WorkerInterp(reader=reader, p=p, out_col=out_col, initial_guess_from=initial_guess_from, transfer_from=transfer_from, transfer_p=transfer_p, alpha=0.6)
@@ -264,28 +278,29 @@ def run_graphs_parallel():
         # worker_ma = WorkerMA(reader=reader, p=p, out_col=out_col, initial_guess_from=initial_guess_from, transfer_from=transfer_from, transfer_p=transfer_p,
         #                      guess_provider=None, guess_format='qaoa')
         # worker = worker_ma
+        worker = WorkerRandomCircuit(reader=reader, p=p, out_col=out_col, initial_guess_from=None, search_space='qaoa')
 
         for node in nodes:
-            node_depths = [3] if node < 12 else depths
-            for depth in node_depths:
-                data_path = f'graphs/main/nodes_{node}/depth_{depth}'
-                out_path = data_path + out_path_suffix
+            # node_depths = [3] if node < 12 else depths
+            # for depth in node_depths:
+            data_path = f'graphs/main/all_{node}/'
+            out_path = data_path + out_path_suffix
 
-                rows_func = lambda df: np.ones((df.shape[0], 1), dtype=bool) if p == 1 else df[f'p_{p - 1}'] < convergence_threshold
-                # rows_func = lambda df: (df[f'p_{p - 1}'] < convergence_threshold) & (df[f'p_{p}'] - df[f'p_{p - 1}'] < 1e-3)
-                # rows_func = lambda df: (df[f'p_{p}'] < convergence_threshold) & ((df[f'p_{p}_nfev'] == 1000 * p) | (df[f'p_{p}'] < df[f'p_{p - 1}']))
+            rows_func = lambda df: np.ones((df.shape[0], 1), dtype=bool) if p == 1 else df[f'p_{p - 1}'] < convergence_threshold
+            # rows_func = lambda df: (df[f'p_{p - 1}'] < convergence_threshold) & (df[f'p_{p}'] - df[f'p_{p - 1}'] < 1e-3)
+            # rows_func = lambda df: (df[f'p_{p}'] < convergence_threshold) & ((df[f'p_{p}_nfev'] == 1000 * p) | (df[f'p_{p}'] < df[f'p_{p - 1}']))
 
-                # mask = np.zeros((1000, 1), dtype=bool)
-                # mask[:] = True
-                # rows_func = lambda df: mask
+            # mask = np.zeros((1000, 1), dtype=bool)
+            # mask[:] = True
+            # rows_func = lambda df: mask
 
-                out_folder = path.split(out_path)[0]
-                if not path.exists(out_folder):
-                    os.makedirs(path.split(out_path)[0])
-                if not path.exists(out_path):
-                    init_dataframe(data_path, worker, out_path)
+            out_folder = path.split(out_path)[0]
+            if not path.exists(out_folder):
+                os.makedirs(path.split(out_path)[0])
+            if not path.exists(out_path):
+                init_dataframe(data_path, worker, out_path, random_type)
 
-                optimize_expectation_parallel(out_path, rows_func, num_workers, worker)
+            optimize_expectation_parallel(out_path, rows_func, num_workers, worker)
 
 
 def run_correct():
@@ -331,6 +346,6 @@ if __name__ == '__main__':
         # generate_random_edge_graphs(g)
         # generate_random_subgraphs(g)
         # generate_remove_triangle_graphs(g)
-    # run_graphs_parallel()
+    run_graphs_parallel()
     # run_merge()
     # run_correct()

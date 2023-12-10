@@ -64,10 +64,12 @@ def run_point():
 
 
 def run_optimization():
-    graph = nx.read_gml('graphs/main/nodes_9/depth_3/0.gml', destringizer=int)
+    graph = nx.read_gml("/home/vilcius//Papers/angle_analysis_ma_qaoa/code/MA-QAOA/graphs/main/all_8/graph_3354/3354.gml", destringizer=int)
+    graph_random = nx.read_gml("/home/vilcius//Papers/angle_analysis_ma_qaoa/code/MA-QAOA/graphs/main/all_8/graph_3354/pseudo_random/18.gml", destringizer=int)
+    # graph = nx.read_gml('graphs/main/nodes_9/depth_3/0.gml', destringizer=int)
     # graph = nx.complete_graph(3)
     # graph = read_graph_xqaoa('graphs/xqaoa/G6#128_1.csv')
-    p = 2
+    p = 1
     search_space = 'qaoa'
 
     # target_vals = evaluate_graph_cut(graph)
@@ -83,17 +85,19 @@ def run_optimization():
     # # driver_terms = [set(term) for term in it.chain(it.combinations(range(len(graph)), 1), it.combinations(range(len(graph)), 2))]
     # evaluator = Evaluator.get_evaluator_general_subsets(len(graph), target_terms, target_term_coeffs, driver_terms, p)
 
-    evaluator = Evaluator.get_evaluator_standard_maxcut(graph, p, search_space=search_space)
+    # evaluator = Evaluator.get_evaluator_standard_maxcut(graph, p, search_space=search_space)
+    evaluator = Evaluator.get_evaluator_random_circuit_maxcut_analytical(graph, graph_random)
     # evaluator = Evaluator.get_evaluator_qiskit_fast(graph, p, search_space)
     # evaluator = Evaluator.get_evaluator_standard_maxcut_analytical(graph, use_multi_angle=True)
 
-    starting_point = numpy_str_to_array('[-0.17993277 -1.30073361 -1.08469108 -1.59744761]')
+    # starting_point = numpy_str_to_array('[-0.17993277 -1.30073361 -1.08469108 -1.59744761]')
     # starting_point = convert_angles_qaoa_to_ma(starting_point, len(graph.edges), len(graph))
 
-    result = optimize_qaoa_angles(evaluator, starting_angles=starting_point)
+    # result = optimize_qaoa_angles(evaluator, starting_angles=starting_point)
+    result = optimize_qaoa_angles(evaluator, num_restarts=100, objective_tolerance=1, normalize_angles=False)
 
     print(f'Best achieved objective: {-result.fun}')
-    print(f'Maximizing angles: {repr(result.x / np.pi)}')
+    print(f'Maximizing angles: {repr(result.x)}')
 
     # expectations = calc_per_edge_expectation(angles_best, driver_term_vals, p, graph, use_multi_angle=use_multi_angle)
     print('Done')
@@ -146,15 +150,15 @@ def generate_random_subgraphs(g):
 if __name__ == '__main__':
     logging.basicConfig()
     logger = logging.getLogger('QAOA')
-    np.set_printoptions(linewidth=160, formatter={'float': lambda x: '{:.3f}'.format(x)})
+    np.set_printoptions(linewidth=160, formatter={'float': lambda x: '{:.16f}'.format(x)})
 
     # Select procedure to run below
     start = time.perf_counter()
     # run_add_graph()
     # run_point()
-    # run_optimization()
+    run_optimization()
     # generate_random_subgraphs(50)
-    gf = 'graphs/main/all_8/graph_11116/pseudo_random/49.gml'
-    run_draw_graph(gf)
+    # gf = 'graphs/main/all_8/graph_11116/pseudo_random/49.gml'
+    # run_draw_graph(gf)
     end = time.perf_counter()
     print(f'Elapsed time: {end - start}')
