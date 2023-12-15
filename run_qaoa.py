@@ -63,12 +63,18 @@ def run_point():
     print(f'Expectation: {res}')
 
 
-def run_optimization():
-    graph = nx.read_gml("/home/vilcius//Papers/angle_analysis_ma_qaoa/code/MA-QAOA/graphs/main/all_8/graph_3354/3354.gml", destringizer=int)
-    graph_random = nx.read_gml("/home/vilcius//Papers/angle_analysis_ma_qaoa/code/MA-QAOA/graphs/main/all_8/graph_3354/pseudo_random/18.gml", destringizer=int)
+def run_optimization(n):
+    # graph = nx.read_gml("/home/vilcius//Papers/angle_analysis_ma_qaoa/code/MA-QAOA/graphs/main/all_8/graph_3354/3354.gml", destringizer=int)
+    # graph_random = nx.read_gml("/home/vilcius//Papers/angle_analysis_ma_qaoa/code/MA-QAOA/graphs/main/all_8/graph_3354/pseudo_random/18.gml", destringizer=int)
     # graph = nx.read_gml('graphs/main/nodes_9/depth_3/0.gml', destringizer=int)
     # graph = nx.complete_graph(3)
     # graph = read_graph_xqaoa('graphs/xqaoa/G6#128_1.csv')
+
+    graph = nx.star_graph(n-1)
+    graph_random = nx.Graph()
+    graph_random.add_nodes_from(graph.nodes)
+    graph_random.add_edges_from([(i, i+1) for i in range(1,n-1)] + [(n-1, 1)])
+
     p = 1
     search_space = 'qaoa'
 
@@ -103,9 +109,9 @@ def run_optimization():
     print('Done')
 
 
-def run_draw_graph(gf):
+def run_draw_graph(graph):
     # graph = nx.read_gml('graphs/main/all_8/graph_40/pseudo_random/25.gml', destringizer=int)
-    graph = nx.read_gml(gf, destringizer=int)
+    # graph = nx.read_gml(gf, destringizer=int)
     nx.draw(graph, with_labels=True)
     plt.show()
 
@@ -156,9 +162,17 @@ if __name__ == '__main__':
     start = time.perf_counter()
     # run_add_graph()
     # run_point()
-    run_optimization()
+    for i in range(3,11):
+        run_optimization(i)
+
+        print()
     # generate_random_subgraphs(50)
-    # gf = 'graphs/main/all_8/graph_11116/pseudo_random/49.gml'
-    # run_draw_graph(gf)
+    # n=4
+    # graph = nx.star_graph(n-1)
+    # graph_random = nx.Graph()
+    # graph_random.add_nodes_from(graph.nodes)
+    # graph_random.add_edges_from([(i, i+1) for i in range(1,n-1)] + [(n-1, 1)])
+    # run_draw_graph(graph)
+    # run_draw_graph(graph_random)
     end = time.perf_counter()
     print(f'Elapsed time: {end - start}')
