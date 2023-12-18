@@ -559,7 +559,10 @@ def optimize_expectation_parallel(dataframe_path: str, rows_func: callable, num_
                 results.append(result)
 
     df = pd.concat((DataFrame(results), remaining_rows)).sort_index(key=natsort_keygen())
-    df.index.name = 'path'
+    if isinstance(worker, WorkerRandomCircuit):
+        df.index.names = ['path', 'random_path']
+    else:
+        df.index.name = 'path'
     if hasattr(worker, 'postprocess_dataframe'):
         df = worker.postprocess_dataframe(df)
     df.to_csv(dataframe_path)
