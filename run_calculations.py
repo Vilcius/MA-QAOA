@@ -216,8 +216,9 @@ def generate_remove_triangle_graphs(g):
 
 def init_dataframe(data_path: str, worker: WorkerBaseQAOA, out_path: str, random_type=None):
     if isinstance(worker, WorkerRandomCircuit):
-        paths = [(f'{data_path}graph_{i}/{i}.gml', f'{data_path}graph_{i}/{random_type}/{os.fsdecode(j)}')
-                 for i in range(11117) for j in sorted(os.listdir(os.fsencode(f'{data_path}graph_{i}/{random_type}')))]
+        # paths = [(f'{data_path}graph_{i}/{i}.gml', f'{data_path}graph_{i}/{random_type}/{os.fsdecode(j)}')
+        #          for i in range(11117) for j in sorted(os.listdir(os.fsencode(f'{data_path}graph_{i}/{random_type}')))]
+        paths = [(f'{data_path}graph_{i}/{i}.gml', f'{data_path}graph_{i}/{i}.gml') for i in range(11117)]
         index = pd.MultiIndex.from_tuples(paths, names=["path", "random_path"])
         df = DataFrame(index=index)
 
@@ -259,8 +260,8 @@ def run_graphs_parallel():
     p = 1
 
     # for p in ps:
-    for random_type in ['random', 'pseudo_random', 'remove_triangle']:
-        out_path_suffix = f'output/{random_type}/out.csv'
+    for random_type in ['qaoa']:
+        out_path = f'results/random_circuit/{random_type}/out.csv'
         out_col = f'p_{p}'
         # initial_guess_from = None if p == 1 else f'p_{p - 1}'
         # initial_guess_from = f'p_{p}'
@@ -284,7 +285,6 @@ def run_graphs_parallel():
             # node_depths = [3] if node < 12 else depths
             # for depth in node_depths:
             data_path = f'graphs/main/all_{node}/'
-            out_path = data_path + out_path_suffix
 
             rows_func = lambda df: np.ones((df.shape[0], 1), dtype=bool) if p == 1 else df[f'p_{p - 1}'] < convergence_threshold
             # rows_func = lambda df: (df[f'p_{p - 1}'] < convergence_threshold) & (df[f'p_{p}'] - df[f'p_{p - 1}'] < 1e-3)
