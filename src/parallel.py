@@ -558,7 +558,8 @@ def optimize_expectation_parallel(dataframe_path: str, rows_func: callable, num_
             for result in tqdm(pool.imap(worker.process_entry, rows_to_process), total=len(rows_to_process), smoothing=0, ascii=' █'):
                 results.append(result)
 
-    df = pd.concat((DataFrame(results), remaining_rows)).sort_index(key=natsort_keygen())
+    # df = pd.concat((DataFrame(results), remaining_rows)).sort_index(key=natsort_keygen())
+    df = pd.concat((DataFrame(results), remaining_rows)).sort_index()
     if isinstance(worker, WorkerRandomCircuit):
         df.index.names = ['path', 'random_path']
     else:
@@ -567,6 +568,7 @@ def optimize_expectation_parallel(dataframe_path: str, rows_func: callable, num_
         df = worker.postprocess_dataframe(df)
     df.to_csv(dataframe_path)
 
-    dataset_id = re.search(r'nodes_\d+/depth_\d+', dataframe_path)[0]
-    print(f'dataset: {dataset_id}; p: {worker.p}; mean: {np.mean(df[worker.out_col]):.3f}; min: {min(df[worker.out_col]):.3f}; converged: {sum(df[worker.out_col] > 0.9995)}; '
+    # dataset_id = re.search(r'nodes_\d+/depth_\d+', dataframe_path)[0]
+    # dataset_id = re.search(r'all_8', dataframe_path)[0]
+    print(f'dataset: {dataframe_path}; p: {worker.p}; mean: {np.mean(df[worker.out_col]):.3f}; min: {min(df[worker.out_col]):.3f}; converged: {sum(df[worker.out_col] > 0.9995)}; '
           f'nfev: {np.mean(df[worker.out_col + "_nfev"].where(lambda x: x != 0)):.0f}\n')
